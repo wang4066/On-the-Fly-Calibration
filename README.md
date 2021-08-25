@@ -30,4 +30,15 @@ Simulation_rd.R: Which corresponds to the random selection results in the paper
 
 Simulation_OC.R: Which corresponds to the online calibration results in the paper
 
+They will output the bias and RMSE of both person and item parameters at the end. Users can change the paraemters of the following manipulated factors
+if they are interested in running other conditions. 
+
+L <- 80 # Test length
+
+prop <- 0.2 #Proportion of pre-calibrated items 
+#50%--oc1.R; 20%--oc2.R
+nsess <- 4 #number of session
+N <- 1000 # sample size
+B <- 500 #item bank szie
+
 
