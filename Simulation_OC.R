@@ -1,13 +1,36 @@
+##################################################
+####Online Calibration + Random Item Selection####
+##################################################
+# Simulation Conditions:
+# L: test length
+# prop: the proportion of precalibrated items in the item bank
+##################################################
+# Fixed Parameters for the current study:
+# R: the number of replications
+# nsess: the number of sessions
+# N: sample size
+# B: item bank size
+#################################################
+##### Outputs a list of updated parameters                                                             
+##### est_t: ability parameters for each session, a R by N by nsess array
+##### est_mu: population mean for each session, a R by nsess matrix
+##### est_sig: population standard deviation for each session, a R by nsess matrix
+##### est_a: the deviance of true and estimated $\alpha$ parameters,  a R by nsess by B array  
+##### est_b: the deviance of true and estimated $\beta$ parameters,  a R by nsess by B array                          
+##### tru_t: true ability parameters for each session, a R by N by nsess array
+##### exposure: the accumulative times an item is utilized for each session, a R by B by nsess array 
+##### adit: the item index administrated for each person, a R by N by L array
+##### kit: the precalibrated items' index, a vector of length B*prop
+##################################################
 set.seed(233)
 library(mirtCAT)
 library(irtoys)
 #varied conditions
 #total test length
-L <- 120 #80
+L <- 120
 #precalibrated items
-prop <- 0.2 #0.5
-#50%--oc1.R; 20%--oc2.R
-source("oc2.R")
+prop <- 0.5
+source("oc.R")
 
 #number of session
 nsess <- 4
@@ -50,15 +73,16 @@ nit <- c(1:500)[-kit]
 
 
 #objects to store item exposure and item selection indexes of candidate items
-exposure <- matrix(integer(R*B),R)
+exposure <- array(0,c(R,B,4))
 adit <- array(,c(R,N,L))
 
-est_a <- est_b <- matrix(,R,B)
+est_a <- est_b <- array(,c(R,4,B))
 est_t <- array(,c(R,N,nsess))
 tru_t <- array(,c(R,N,4))
 est.mu <-est.sig <-  matrix(,R,nsess)
 
 for (r in 1:R){
+  tryCatch({
   #generate thetas for each replication
   theta <- rnorm(N)
   Theta <- cbind(theta,
@@ -87,7 +111,7 @@ for (r in 1:R){
         temp.ad[i,temp.item] <- temp.ad[i,temp.item]+1
         #record administered item and # of exposure
         adit[r,i,((k-1)*l+1):(k*l)] <- temp.it[i,] <- temp.item
-        exposure[r,temp.item] <- exposure[r,temp.item]+1
+        exposure[r,temp.item,k] <- exposure[r,temp.item,k]+1
         resp[i,((k-1)*l+1):(k*l)] <- temp.resp[i,] <- ifelse(pnorm(alpha[temp.item]+
                                                                              beta[temp.item]*Theta[i,k])>
                                                                runif(l),1,0)
@@ -98,6 +122,7 @@ for (r in 1:R){
         mu_alpha <- -upd[,1]*upd[,2]
         mu_beta<- upd[,1]
         est.mu[r,k] <-  mu <- out$pop[1]
+        est.sig[r,k] <-  sig <- out$pop[2]
         #compute theta estimates 
         for (i in 1:N){
           temp.item <- temp.it[i,]
@@ -107,14 +132,17 @@ for (r in 1:R){
           mu_theta[i,k]<- fscores(mod,response.pattern =temp.resp[i,],
                                   append_response.pattern = F)[1]
         }
+        est_a[r,k,] <- mu_alpha-alpha
+        est_b[r,k,] <- mu_beta-beta
+        if(k!=nsess)
+        {exposure[r,,k+1] <- exposure[r,,k]}
   }
     
   
 est_t[r,,] <- mu_theta
 # est_ts[r,,] <- sig_theta
-est_a[r,] <- mu_alpha-alpha
-est_b[r,] <- mu_beta-beta
 tru_t[r,,] <- Theta
+  }, error=function(e){cat("ERROR:",conditionMessage(e), "\n")})
 print(r)
 }
 
@@ -129,8 +157,11 @@ rmse_t <- colMeans(cbind(sqrt(rowMeans((est_t[,,1]-tru_t[,,1])^2)),
                          sqrt(rowMeans((est_t[,,4]-tru_t[,,4])^2))))
 #bias and RMSE of item parameters
 ic <- c(
-  mean(colMeans(est_a[,-kit])),
-  mean(colMeans(est_b[,-kit])),
-  mean(sqrt(colMeans((est_a[,-kit]^2)))),
-  mean(sqrt(colMeans((est_b[,-kit]^2))))
+  mean(colMeans(est_a[,4,-kit])),
+  mean(colMeans(est_b[,4,-kit])),
+  mean(sqrt(colMeans((est_a[,4,-kit]^2)))),
+  mean(sqrt(colMeans((est_b[,4,-kit]^2))))
 )
+
+rs=list(est_t=est_t,est.mu=est.mu,est.sig=est.sig,est_a=est_a,est_b=est_b,tru_t=tru_t,exposure=exposure,adit=adit,kit=kit)
+saveRDS(rs,"oc_120_prop50.rds")

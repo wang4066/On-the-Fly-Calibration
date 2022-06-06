@@ -1,3 +1,26 @@
+##################################################
+##### Bayesian Update + Random Item Selection#####
+##################################################
+# Simulation Conditions:
+# L: test length
+# prop: the proportion of precalibrated items in the item bank
+##################################################
+# Fixed Parameters for the current study:
+# R: the number of replications
+# nsess: the number of sessions
+# N: sample size
+# B: item bank size
+#################################################
+##### Outputs a list of updated parameters                                                             
+##### est_t: ability parameters, a R by N by L+1 array where the first column includes the initial values
+##### est_ts: ability parameters' standard deviations, a R by N by L+1 array
+##### est_a: the deviance of true and estimated $\alpha$ parameters and their standard deviations,  a R by nsess by B by 2 array  
+##### est_b: the deviance of true and estimated $\beta$ parameters and their standard deviations,  a R by nsess by B by 2 array                          
+##### tru_t: true ability parameters for each session, a R by N by nsess array
+##### exposure: the accumulative times an item is utilized for each session, a R by B by nsess array 
+##### adit: the item index administrated for each person, a R by N by L array
+##### kit: the precalibrated items' index, a vector of length B*prop
+##################################################
 set.seed(233)
 #varied conditions
 #total test length
@@ -22,12 +45,11 @@ sig.t <- 1
 #data-generating distributions for beta
 sigb <- 0.32
 
+#used for Bayesian update rules
 kappa <- 0.0001
 gam <- c(-Inf,0,Inf)
 #maximal exposure rates
 mex <- .4
-#number of draws
-D <- 500
 #number of replications
 R <- 30
 
@@ -46,16 +68,16 @@ mu_theta <- sig_theta <- matrix(,N,L+1)
 #index of precalibrated items
 kit <- sample.int(B,B*prop)
 
-#load functions to compute parameter update 
+#load functions to compute parameter update using Bayesian update rule
 source("par_update.R")
 
 #objects to store item exposure and item selection indexes of candidate items
-exposure <- matrix(integer(R*B),R)
+exposure <- array(0,c(R,B,4))
 adit <- array(,c(R,N,L))
 tind <- matrix(,B,2)
 tind[,1] <- 1:B
 
-est_a <- est_b <- array(,c(R,B,2))
+est_a <- est_b <- array(,c(R,4,B,2))
 est_t <- est_ts <- array(,c(R,N,L+1))
 tru_t <- array(,c(R,N,4))
 
@@ -97,7 +119,7 @@ for (r in 1:R){
         
         #record administered item and # of exposure
         adit[r,i,j] <- temp.item
-        exposure[r,temp.item] <- exposure[r,temp.item]+1
+        exposure[r,temp.item,k] <- exposure[r,temp.item,k]+1
         resp[i,j] <- response <- ifelse(pnorm(alpha[temp.item]+
                                                         beta[temp.item]*Theta[i,k])>
                                           runif(1),1,0)
@@ -116,11 +138,14 @@ for (r in 1:R){
 
       }
     }
+    est_a[r,k,,] <- cbind(mu_alpha-alpha,sig_alpha)
+    est_b[r,k,,] <- cbind(mu_beta-beta,sig_beta)
+    if(k!=nsess)
+    {exposure[r,,k+1] <- exposure[r,,k]}
   }
   est_t[r,,] <- mu_theta
   est_ts[r,,] <- sig_theta
-  est_a[r,,] <- cbind(mu_alpha-alpha,sig_alpha)
-  est_b[r,,] <- cbind(mu_beta-beta,sig_beta)
+ 
   tru_t[r,,] <- Theta
   print(r)
 }
@@ -135,9 +160,12 @@ rmse_t <- colMeans(cbind(sqrt(rowMeans((est_t[,,l+1]-tru_t[,,1])^2)),
                          sqrt(rowMeans((est_t[,,3*l+1]-tru_t[,,3])^2)),
                          sqrt(rowMeans((est_t[,,L+1]-tru_t[,,4])^2))))
 #bias and RMSE of item parameters
-mean(colMeans(est_a[,-kit,1]))
-mean(colMeans(est_b[,-kit,1]))
-mean(colMeans(est_a[,-kit,2]))
-mean(colMeans(est_b[,-kit,2]))
-mean(sqrt(colMeans((est_a[,-kit,1]^2))))
-mean(sqrt(colMeans((est_b[,-kit,1]^2))))
+mean(colMeans(est_a[,4,-kit,1]))
+mean(colMeans(est_b[,4,-kit,1]))
+mean(colMeans(est_a[,4,-kit,2]))
+mean(colMeans(est_b[,4,-kit,2]))
+mean(sqrt(colMeans((est_a[,4,-kit,1]^2))))
+mean(sqrt(colMeans((est_b[,4,-kit,1]^2))))
+
+rs=list(est_t=est_t,est_ts=est_ts,est_a=est_a,est_b=est_b,tru_t=tru_t,exposure=exposure,adit=adit,kit=kit)
+saveRDS(rs,"rd_120_prop20.rds")

@@ -1,6 +1,9 @@
+############Bayesian update rule###################
+#compute Omega
 Omega <-  function(v1,v2,s){
   (dnorm(v1/s)-dnorm(v2/s))/(pnorm(v1/s)-pnorm(v2/s));
 }
+#compute Delta
 Delta <-  function(v1,v2,s,resp){
   if (resp==0)
     return((-(v2/s)*dnorm(v2/s))/(pnorm(v1/s)-pnorm(v2/s)) +
@@ -9,7 +12,7 @@ Delta <-  function(v1,v2,s,resp){
     return(((v1/s)*dnorm(v1/s))/(pnorm(v1/s)-pnorm(v2/s)) +
              ((dnorm(v1/s)-dnorm(v2/s))/(pnorm(v1/s)-pnorm(v2/s)))^2)
 }
-
+#update item and ability parameters and their standard deviations.
 par.update <- function(){
   std <- sqrt(1+(sig_alpha[temp.item])^2+
              (sig_beta[temp.item]* mu_theta[i,j])^2 +
